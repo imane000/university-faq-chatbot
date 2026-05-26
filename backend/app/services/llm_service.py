@@ -4,16 +4,20 @@ from groq import Groq
 
 from app.rag.retriever import retrieve_context
 
+# charger le fichier .env
 load_dotenv()
 
+# client Groq
 client = Groq(
     api_key=os.getenv("GROQ_API_KEY")
 )
 
 def ask_llm(question):
 
+    # récupérer le contexte depuis le retriever
     context = retrieve_context(question)
 
+    # prompt envoyé au modèle IA
     prompt = f"""
 Tu es un assistant FAQ universitaire.
 
@@ -27,6 +31,7 @@ Question :
 Réponse :
 """
 
+    # appel Groq API
     response = client.chat.completions.create(
         model="llama-3.1-8b-instant",
         messages=[
@@ -39,4 +44,5 @@ Réponse :
         max_tokens=300
     )
 
+    # retourner réponse IA
     return response.choices[0].message.content
