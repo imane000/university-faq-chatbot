@@ -1,16 +1,21 @@
-# React + Vite
+# React frontend
 
-This template provides a minimal setup to get React working in Vite with HMR and some ESLint rules.
+The user interface for University FAQ Chatbot. See the [root README](../README.md)
+for backend setup, document ingestion and the full architecture.
 
-Currently, two official plugins are available:
+Requires Node.js 24 LTS. From this directory:
 
-- [@vitejs/plugin-react](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react) uses [Oxc](https://oxc.rs)
-- [@vitejs/plugin-react-swc](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react-swc) uses [SWC](https://swc.rs/)
+```bash
+cp .env.example .env
+npm ci
+npm run dev -- --host 127.0.0.1
+```
 
-## React Compiler
+`VITE_API_URL` selects the FastAPI server and is public configuration. Restart Vite
+or rebuild after changing it. Never store Groq keys in frontend environment files.
 
-The React Compiler is not enabled on this template because of its impact on dev & build performances. To add it, see [this documentation](https://react.dev/learn/react-compiler/installation).
+Checks: `npm run lint`, `npm test`, `npm run build`, `npm audit`.
 
-## Expanding the ESLint configuration
-
-If you are developing a production application, we recommend using TypeScript with type-aware lint rules enabled. Check out the [TS template](https://github.com/vitejs/vite/tree/main/packages/create-vite/template-react-ts) for information on how to integrate TypeScript and [`typescript-eslint`](https://typescript-eslint.io) in your project.
+Conversations live in this browser's localStorage, not in a shared backend history.
+Retrieved filenames and pages are shown under each answer. They identify context
+supplied to the model, not independently verified claims.

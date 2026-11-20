@@ -5,39 +5,35 @@ import Sidebar from "./components/Sidebar";
 import ChatBox from "./components/ChatBox";
 import InputBar from "./components/InputBar";
 
+const createConversation = () => ({
+  id: Date.now(),
+  title: "Nouvelle conversation",
+  messages: [{ text: "Bonjour 👋", sender: "bot" }],
+});
+
+const loadConversations = () => {
+  try {
+    const saved = JSON.parse(localStorage.getItem("conversations"));
+    if (Array.isArray(saved) && saved.length && saved.every((conv) =>
+      typeof conv?.id === "number" && typeof conv.title === "string" &&
+      Array.isArray(conv.messages) && conv.messages.every((msg) =>
+        typeof msg?.text === "string" && ["bot", "user"].includes(msg.sender)))) {
+      return saved;
+    }
+  } catch { /* Invalid or unavailable browser storage starts a fresh conversation. */ }
+  return [createConversation()];
+};
+
 function App() {
 
   // INPUT
   const [message, setMessage] = useState("");
 
   // CONVERSATIONS
-  const [conversations, setConversations] =
-    useState(() => {
-
-      const saved =
-        localStorage.getItem("conversations");
-
-      return saved
-        ? JSON.parse(saved)
-        : [
-            {
-              id: 1,
-              title: "Nouvelle conversation",
-              messages: [
-                {
-                  text: "Bonjour 👋",
-                  sender: "bot",
-                },
-              ],
-            },
-          ];
-
-    });
-
-  // CURRENT CONVERSATION
-  const [currentConversationId,
-    setCurrentConversationId] =
-    useState(1);
+  const [conversations, setConversations] = useState(loadConversations);
+  const [currentConversationId, setCurrentConversationId] =
+    useState(() => conversations[0].id);
+  const requestInFlight = useRef(false);
 
   // TYPING
   const [isTyping, setIsTyping] =
@@ -60,28 +56,16 @@ function App() {
       behavior: "smooth",
     });
 
-    localStorage.setItem(
-      "conversations",
-      JSON.stringify(conversations)
-    );
+    try {
+      localStorage.setItem("conversations", JSON.stringify(conversations));
+    } catch { /* Chat remains usable if storage is full or disabled. */ }
 
   }, [conversations, isTyping]);
 
   // NEW CONVERSATION
   const newConversation = () => {
 
-    const newConv = {
-      id: Date.now(),
-
-      title: "Nouvelle conversation",
-
-      messages: [
-        {
-          text: "Bonjour 👋",
-          sender: "bot",
-        },
-      ],
-    };
+    const newConv = createConversation();
 
     setConversations((prev) => [
       ...prev,
@@ -95,19 +79,10 @@ function App() {
   // DELETE CONVERSATION
   const deleteConversation = (id) => {
 
-    const updated =
-      conversations.filter(
-        (conv) => conv.id !== id
-      );
-
-    setConversations(updated);
-
-    if (updated.length > 0) {
-      setCurrentConversationId(
-        updated[0].id
-      );
-    }
-
+    const updated = conversations.filter((conv) => conv.id !== id);
+    const remaining = updated.length ? updated : [createConversation()];
+    setConversations(remaining);
+    if (id === currentConversationId) setCurrentConversationId(remaining[0].id);
   };
 
   // SELECT CONVERSATION
@@ -120,12 +95,7 @@ function App() {
   // QUICK QUESTION
   const quickQuestion = (question) => {
 
-    setMessage(question);
-
-    setTimeout(() => {
-      sendMessage(question);
-    }, 100);
-
+    sendMessage(question);
   };
 
   // SEND MESSAGE
@@ -134,8 +104,8 @@ function App() {
     const finalMessage =
       customMessage || message;
 
-    if (finalMessage.trim() === "")
-      return;
+    if (!finalMessage.trim() || requestInFlight.current) return;
+    requestInFlight.current = true;
 
     // USER MESSAGE
     const userMessage = {
@@ -186,6 +156,7 @@ function App() {
       const botMessage = {
         text: data.response,
         sender: "bot",
+        sources: data.sources || [],
       };
 
       setConversations((prev) =>
@@ -215,7 +186,7 @@ function App() {
     } catch (error) {
 
       const errorMessage = {
-        text: "Erreur serveur ❌",
+        text: error.message || "Service indisponible. Réessayez.",
         sender: "bot",
       };
 
@@ -245,6 +216,7 @@ function App() {
 
     }
 
+    requestInFlight.current = false;
     setIsTyping(false);
 
   };

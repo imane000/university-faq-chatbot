@@ -50,7 +50,20 @@ function Message({ msg }) {
             maxWidth: "300px",
           }}
         >
-          {msg.text}
+          <div style={{ whiteSpace: "pre-wrap" }}>{msg.text}</div>
+          {msg.sender === "bot" && Array.isArray(msg.sources) && msg.sources.length > 0 && (
+            <details style={{ marginTop: "10px", fontSize: "12px" }}>
+              <summary>Extraits fournis au modèle</summary>
+              <ul style={{ paddingLeft: "16px" }}>
+                {msg.sources.map((source) => (
+                  <li key={source.reference}>
+                    [{source.reference}] {source.source}
+                    {source.page ? ` — page ${source.page}` : ""}
+                  </li>
+                ))}
+              </ul>
+            </details>
+          )}
         </div>
 
         {msg.sender === "user" && (

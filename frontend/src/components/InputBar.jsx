@@ -8,7 +8,7 @@ function InputBar({
   // ENTRÉE CLAVIER
   const handleKeyDown = (e) => {
 
-    if (e.key === "Enter") {
+    if (e.key === "Enter" && !e.nativeEvent.isComposing && !isTyping) {
       sendMessage();
     }
 
@@ -27,6 +27,9 @@ function InputBar({
       {/* INPUT */}
       <input
         type="text"
+        aria-label="Votre question universitaire"
+        maxLength={2000}
+        disabled={isTyping}
         placeholder="Posez votre question..."
         value={message}
         onChange={(e) =>

@@ -1,53 +1,51 @@
-from fastapi.middleware.cors import CORSMiddleware
-from fastapi import FastAPI
-from pydantic import BaseModel
-from app.services.llm_service import ask_llm
+"""FastAPI entry point. Run: uvicorn app.main:app --reload."""
 
-app = FastAPI()
+from app.config import get_settings
+from app.services.llm_service import ChatServiceError, answer_question
+from fastapi import FastAPI, HTTPException
+from fastapi.middleware.cors import CORSMiddleware
+from pydantic import BaseModel, ConfigDict, Field
+
+app = FastAPI(title="University FAQ Chatbot", version="1.0.0")
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],
-    allow_credentials=True,
-    allow_methods=["*"],
-    allow_headers=["*"],
+    allow_origins=get_settings().cors_origins,
+    allow_credentials=False,
+    allow_methods=["GET", "POST"],
+    allow_headers=["Content-Type"],
 )
 
-chat_history = []
 
 class Question(BaseModel):
-    question: str
+    model_config = ConfigDict(str_strip_whitespace=True, extra="forbid")
+    question: str = Field(min_length=1, max_length=2000)
+
+
+class Source(BaseModel):
+    reference: int
+    source: str
+    page: int | None = None
+
+
+class Answer(BaseModel):
+    response: str
+    sources: list[Source]
+
 
 @app.get("/")
 def home():
-    return {
-        "message": "University FAQ Chatbot API"
-    }
+    return {"message": "University FAQ Chatbot API", "docs": "/docs"}
 
-@app.post("/chat")
+
+@app.get("/health")
+def health():
+    """Liveness only; does not call Groq or download embedding weights."""
+    return {"status": "ok"}
+
+
+@app.post("/chat", response_model=Answer)
 def chat(data: Question):
-
-    response = ask_llm(data.question)
-
-    chat_history.append({
-        "question": data.question,
-        "response": response
-    })
-
-    return {
-        "response": response
-    }
-
-@app.get("/history")
-def get_history():
-    return {
-        "history": chat_history
-    }
-
-@app.delete("/history")
-def clear_history():
-
-    chat_history.clear()
-
-    return {
-        "message": "Historique supprimé avec succès"
-    }
+    try:
+        return answer_question(data.question)
+    except ChatServiceError as exc:
+        raise HTTPException(status_code=exc.status_code, detail=str(exc)) from None

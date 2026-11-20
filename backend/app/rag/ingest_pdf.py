@@ -1,50 +1,40 @@
-from langchain_community.document_loaders import PyPDFLoader
+"""Run from backend: python -m app.rag.ingest_pdf."""
+
+from pathlib import Path
+
+from app.config import get_settings
+from app.rag.store import get_collection, sync_source
 from langchain_text_splitters import RecursiveCharacterTextSplitter
+from pypdf import PdfReader
 
-import chromadb
-import os
 
-client = chromadb.PersistentClient(path="./chroma_db")
+def ingest_pdf(path: Path) -> int:
+    splitter = RecursiveCharacterTextSplitter(chunk_size=800, chunk_overlap=120)
+    texts, metadata = [], []
+    for page_number, page in enumerate(PdfReader(path).pages, start=1):
+        for chunk in splitter.split_text(page.extract_text() or ""):
+            if chunk.strip():
+                texts.append(chunk)
+                metadata.append(
+                    {
+                        "source": path.name,
+                        "source_type": "pdf",
+                        "page": page_number,
+                        "chunk": len(texts) - 1,
+                    }
+                )
+    if not texts:
+        raise ValueError(f"No extractable text in {path.name}; OCR may be required")
+    return sync_source(get_collection(create=True), path.name, texts, metadata)
 
-collection = client.get_or_create_collection(
-    name="university_documents"
-)
 
-DATA_PATH = "./data"
+def ingest_pdfs(directory: Path | None = None) -> int:
+    directory = directory or get_settings().data_path
+    paths = sorted(directory.glob("*.pdf"))
+    if not paths:
+        raise FileNotFoundError(f"No PDF files in {directory}")
+    return sum(ingest_pdf(path) for path in paths)
 
-text_splitter = RecursiveCharacterTextSplitter(
-    chunk_size=500,
-    chunk_overlap=50
-)
 
-all_chunks = []
-
-for filename in os.listdir(DATA_PATH):
-
-    if filename.endswith(".pdf"):
-
-        file_path = os.path.join(DATA_PATH, filename)
-
-        loader = PyPDFLoader(file_path)
-
-        documents = loader.load()
-
-        chunks = text_splitter.split_documents(documents)
-
-        all_chunks.extend(chunks)
-
-documents_text = []
-ids = []
-
-for index, chunk in enumerate(all_chunks):
-
-    documents_text.append(chunk.page_content)
-
-    ids.append(f"doc_{index}")
-
-collection.add(
-    documents=documents_text,
-    ids=ids
-)
-
-print("PDFs indexés avec succès.")
+if __name__ == "__main__":
+    print(f"Indexed {ingest_pdfs()} PDF chunks.")
